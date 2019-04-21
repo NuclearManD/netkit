@@ -1,4 +1,4 @@
-import time
+import time, os
 
 def get_extra(txt):
     return ""
@@ -18,4 +18,5 @@ def log(text):
 def add_log_file(filename):
     if filename.find('{}')!=-1:
         filename = filename.format(time.strftime(log_date_format))
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     log_files.append(open(filename, 'a+'))
