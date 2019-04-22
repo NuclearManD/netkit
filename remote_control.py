@@ -1,6 +1,6 @@
 
 import socket, neonet, random, os, time, subprocess
-from logging import log, add_log_file
+from netlog import log, add_log_file
 
 DEFAULT_PORT = 157
 

@@ -1,7 +1,7 @@
 import neonet_routing_layer as nrl
 import neonet_raw as ntl
 import time
-from crypt import sha512, encrypt1, decrypt1
+from netcrypt import sha512, encrypt1, decrypt1
 
 # this module's purpose is to connect to neonet and establish connections.
 # it does not (easily) support more advanced setups, like network switches between different types of hardware.

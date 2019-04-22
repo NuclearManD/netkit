@@ -1,4 +1,4 @@
-from crypt import decrypt1, encrypt1, shortstrhash
+from netcrypt import decrypt1, encrypt1, shortstrhash
 import os
 
 class CryptFS:

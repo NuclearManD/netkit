@@ -1,0 +1,1 @@
+{'adr': 3347447824, 'key': 'default-key', 'filebase-dir': './filebase/', 'log_dir': ',./logs/'}

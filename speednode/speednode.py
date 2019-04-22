@@ -1,9 +1,13 @@
 import sys, os
 sys.path.append(os.path.abspath('../'))
+os.chdir(os.path.abspath('../'))
 
-import neonet, logging
+import neonet
+import netlog as logging
 import filebase, remote_control
-import storage, _threading
+import storage, _thread
+
+os.chdir('speednode')
 
 if not os.path.isfile("cfg.txt"):
     storage.saveDict("cfg.txt", {
