@@ -90,45 +90,49 @@ class NrlConnectionManager:
         while self.is_updating:
             time.sleep(0.000001)
         self.is_updating=True
-        for i in self.uplinks.keys():
-            u = self.uplinks[i]
-            u.update()
-            while u.available()>0:
-                data = u.getPacket()
-                if len(data)==6:
-                    self.addRoute(int.from_bytes(data,'little'),i)
-                elif len(data)>=20:
-                    target = int.from_bytes(data[:8],'little')
-                    if target == self.address:
-                        # it's for me!
-                        sender = int.from_bytes(data[8:16],'little')
-                        port = int.from_bytes(data[16:20],'little')
-                        self.queue.insert(0,[sender,port,data[20:]])
+        try:
+            for i in self.uplinks.keys():
+                u = self.uplinks[i]
+                u.update()
+                while u.available()>0:
+                    data = u.getPacket()
+                    if len(data)==6:
+                        self.addRoute(int.from_bytes(data,'little'),i)
+                    elif len(data)>=20:
+                        target = int.from_bytes(data[:8],'little')
+                        if target == self.address:
+                            # it's for me!
+                            sender = int.from_bytes(data[8:16],'little')
+                            port = int.from_bytes(data[16:20],'little')
+                            self.queue.append([sender,port,data[20:]])
+                        else:
+                            target = target>>16
+                            if not target in self.routing.keys():
+                                target = DEFAULT_AREA_CODE # default area code
+                            if target in self.routing.keys(): # only transmit if we have a route for it
+                                key = self.routing[target] # we have the route!
+                                if key!=i and key in self.uplinks.keys():  # transmit to a different uplink or don't transmit at all
+                                    try:
+                                        self.uplinks[key].sendData(data) # send the raw packet
+                                    except:
+                                        pass  # oops, connection closed?  Dunno, but dont die
                     else:
-                        target = target>>16
-                        if not target in self.routing.keys():
-                            target = DEFAULT_AREA_CODE # default area code
-                        if target in self.routing.keys(): # only transmit if we have a route for it
-                            key = self.routing[target] # we have the route!
-                            if key!=i and key in self.uplinks.keys():  # transmit to a different uplink or don't transmit at all
-                                try:
-                                    self.uplinks[key].sendData(data) # send the raw packet
-                                except:
-                                    pass  # oops, connection closed?  Dunno, but dont die
-                else:
-                    debug("Error: bad packet of length "+str(len(data))+" was received.")
+                        debug("Error: bad packet of length "+str(len(data))+" was received.")
+        except Exception as e:
+            self.is_updating=False
+            raise e # re-raise the exception, but make sure we aren't marked as updating first.
         self.is_updating=False
     def available(self):
         return len(self.queue)
     def getPacket(self, timeout = 8000):
         self.update()
         if self.available()>0:
-            return self.queue.pop()
+            return self.queue.pop(0)
         timer = ntl.millis() + timeout
         while ntl.millis()<timer:
             self.update()
             if len(self.queue)>0:
-                return self.queue.pop()
+                return self.queue.pop(0)
             time.sleep(0.005)
         return None
     def sendPacket(self, dest, port, data):
@@ -143,10 +147,10 @@ class NrlConnectionManager:
         if ac in self.routing.keys(): # only transmit if we have a route for it
             key = self.routing[ac] # we have the route!
             if key in self.uplinks.keys():  # transmit to an uplink (if it exists)
+                data = port.to_bytes(4,'little')+data
+                data = self.address.to_bytes(8,'little')+data
+                data = dest.to_bytes(8,'little')+data
                 try:
-                    data = port.to_bytes(4,'little')+data
-                    data = self.address.to_bytes(8,'little')+data
-                    data = dest.to_bytes(8,'little')+data
                     self.uplinks[key].sendData(data) # send the raw packet
                 except:
                     pass  # oops, connection closed?  Dunno, but dont die
