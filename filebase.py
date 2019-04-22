@@ -2,10 +2,12 @@
 import socket, neonet, random, os, time, subprocess
 from logging import log, add_log_file
 
-DEFAULT_PORT = 157
+from kryptonite import CryptFS
 
-def handle_client(con, adr):
-    log("Remote Control: Accepted connection from "+str(adr))
+DEFAULT_PORT = 87
+
+def handle_client(fs, con, adr):
+    log("Accepted connection from "+str(adr))
     running = True
     while running:
         data = con.recv(60000)
@@ -17,34 +19,37 @@ def handle_client(con, adr):
             if data!=b"HELLO!":
                 con.queue.append(data) # put it back on if it's not a response
         elif data[:5]==b'CLOSE':
-            txt = "Remote Control: "+str(adr)+" is closing the connection."
+            txt = str(adr)+" is closing the connection."
             if len(data)>5:
                 txt+="  Message = "+data[5:].decode()
             log(txt)
             break
-        elif data[:3]==b"CWD":
+        elif data[:2]==b"WR":
             try:
-                os.chdir(data[3:].decode())
+                idx = data.find(b';')
+                fn = data[2:idx].decode()
+                fs.write(fn, data[idx:])
                 con.send(b"OK")
             except Exception as e:
                 con.send(b"ERROR: "+str(e).encode())
-        elif data[:3]==b"SYS":
+        elif data[:2]==b"RD":
             try:
-                con.send(b"OK")
-                cmd = data[3:].decode()
-                log("Executing command: "+cmd)
-                p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                while p.poll()==None:
-                    d = p.stdout.read()
-                    if len(d)>0:
-                        con.send(b'stdo='+d)
-                    time.sleep(.1)
-                con.send(b"done="+str(p.poll()).encode())
+                fn = data[2:].decode()
+                data = fs.read(fn)
+                if data==-1:
+                    con.send(b"FNF") # file not found
+                else:
+                    con.send((len(data)//8192 +1).to_bytes(4, "big"))
+                    for i in range((len(data)//8192 +1)):
+                        con.send(data[i*8192:(i+1)*8192])
             except Exception as e:
                 con.send(b"ERROR: "+str(e).encode())
-    log("Remote Control: Connection to "+str(adr)+" is closed.")
-def run(key, port = DEFAULT_PORT):
+    log("Connection to "+str(adr)+" is closed.")
+def run(key, location, port = DEFAULT_PORT):
     scon = neonet.NrlOpenPort(port)
+
+    fs = CryptFS(key, location)
+    
     while True:
         data = scon.recv(float('inf'))
         adr = data[0]
@@ -54,13 +59,12 @@ def run(key, port = DEFAULT_PORT):
                 port = random.randint(8192, 2**30)
                 scon.send(adr, b"OK="+hex(port).encode())
                 con = neonet.NrlSecureConnection(adr, port, key, 500)
-                #_thread.start_new_thread(handle_client, (con, adr))
-                handle_client(con, adr)
+                _thread.start_new_thread(handle_client, (fs, con, adr))
             else:
                 log("Strange data from "+str(adr)+" : "+data.decode())
         except:
             pass
-class ControlConnection:
+class FilebaseConnection:
     def __init__(self, adr, key, port = DEFAULT_PORT):
         tmp = neonet.NrlConnection(adr, port)
         tmp.send(b"REMOTE_CONNECT")
@@ -75,38 +79,34 @@ class ControlConnection:
     def close(self, message = ''):
         self.con.send(b'CLOSE'+message.encode())
         self.con=None
-    def cwd(self, wd):
-        self.con.send(b'CWD'+wd.encode())
+    def read(self, fn):
+        self.con.send(b'RD'+fn.encode())
+        buffer = b''
+        data = self.con.recv()
+        if data==None:
+            return None
+        elif data==b"FNF":
+            return -1
+        size = int.from_bytes(data, 'big')
+        for i in range(size):
+            buffer+=self.con.recv()
+        return buffer
+    def write(self, fn, data):
+        if type(data)==str:
+            data = data.encode()
+        self.con.send(b'WR'+fn.encode()+b';'+data)
         msg = self.con.recv()
         if msg!=b"OK":
             if msg!=None:
                 msg = msg.decode()
             return msg
-    def system(self, cmd):
-        self.con.send(b'SYS'+cmd.encode())
-        msg = self.con.recv()
-        if msg!=b"OK":
-            if msg!=None:
-                msg = msg.decode()
-            return msg
-    def sys_pull(self):
-        d = self.con.recv(200)
-        if d!=None:
-            d=d.decode()
-            cmd = d[:5]
-            if cmd=="stdo=":
-                return ['stdo',d[5:]]
-            elif cmd=="stde=":
-                return ['stde',d[5:]]
-            elif cmd=="done=":
-                return int(d[5:])
 if __name__=="__main__":
-    add_log_file("logs/{}.txt")
+    add_log_file("logs/filebase/{}.txt")
     log("Starting NeoNet...")
     neonet.setup(0x880210)
-    log("Starting remote_control.py ...")
+    log("Starting filebase.py [default configuration]...")
     try:
-        run("password") # TODO: fix this somehow
+        run("password", "filebase_default/") # TODO: fix this somehow
     except Exception as e:
         log("ERROR: Server threw an exception: "+str(e))
         nope()
