@@ -14,7 +14,7 @@ if not os.path.isfile("cfg.txt"):
         'adr':0xC7860010,
         'key':'default-key',
         'filebase-dir':'./filebase/',
-        'log_dir':',./logs/'
+        'log_dir':'./logs/'
         })
 cfg = storage.loadDict("cfg.txt")
 neonet.setup(cfg['adr'])
