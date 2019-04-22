@@ -7,7 +7,7 @@ from kryptonite import CryptFS
 DEFAULT_PORT = 87
 
 def handle_client(fs, con, adr):
-    log("Accepted connection from "+str(adr))
+    log("Filebase: Accepted connection from "+str(adr))
     running = True
     while running:
         data = con.recv(60000)
@@ -19,7 +19,7 @@ def handle_client(fs, con, adr):
             if data!=b"HELLO!":
                 con.queue.append(data) # put it back on if it's not a response
         elif data[:5]==b'CLOSE':
-            txt = str(adr)+" is closing the connection."
+            txt = "Filebase: "+str(adr)+" is closing the connection."
             if len(data)>5:
                 txt+="  Message = "+data[5:].decode()
             log(txt)
@@ -44,7 +44,7 @@ def handle_client(fs, con, adr):
                         con.send(data[i*8192:(i+1)*8192])
             except Exception as e:
                 con.send(b"ERROR: "+str(e).encode())
-    log("Connection to "+str(adr)+" is closed.")
+    log("Filebase: Connection to "+str(adr)+" is closed.")
 def run(key, location, port = DEFAULT_PORT):
     scon = neonet.NrlOpenPort(port)
 
@@ -59,7 +59,8 @@ def run(key, location, port = DEFAULT_PORT):
                 port = random.randint(8192, 2**30)
                 scon.send(adr, b"OK="+hex(port).encode())
                 con = neonet.NrlSecureConnection(adr, port, key, 500)
-                _thread.start_new_thread(handle_client, (fs, con, adr))
+                #_thread.start_new_thread(handle_client, (fs, con, adr))
+                handle_client(fs, con, adr)
             else:
                 log("Strange data from "+str(adr)+" : "+data.decode())
         except:
